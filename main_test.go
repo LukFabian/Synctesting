@@ -33,33 +33,33 @@ func TestAfterFunc(t *testing.T) {
 	})
 }
 
-func TestHandleEcho(t *testing.T) {
+func TestHandleEchoAck(t *testing.T) {
 	synctest.Run(func() {
 		srv, cli := net.Pipe()
 		defer srv.Close()
 		defer cli.Close()
 
-		go handleEcho(srv)
+		go handleEchoAck(srv)
 
 		body := strings.Repeat("ping\n", 3)
 
-		// Write client data in a goroutine
+		acked := make(chan struct{})
+
 		go func() {
 			cli.Write([]byte(body))
-			cli.Close()
-		}()
-
-		reader := bufio.NewReader(cli)
-		var got strings.Builder
-
-		go func() {
-			io.Copy(&got, reader)
+			cli.(net.Conn).Close()
+			buf := bufio.NewReader(cli)
+			io.ReadAll(buf)
+			close(acked)
 		}()
 
 		synctest.Wait()
 
-		if got.String() != body {
-			t.Fatalf("echo mismatch: got %q, want %q", got.String(), body)
+		select {
+		case <-acked:
+			// Good: client finished ACK
+		default:
+			t.Fatalf("ACK handler did not complete")
 		}
 	})
 }

@@ -2,7 +2,10 @@ package main
 
 import (
 	"bufio"
+	"fmt"
+	"io"
 	"net"
+	"strings"
 )
 
 func pollChannel(signalChan <-chan struct{}, onSignal func()) {
@@ -12,20 +15,23 @@ func pollChannel(signalChan <-chan struct{}, onSignal func()) {
 	}()
 }
 
-func handleEcho(conn net.Conn) {
+func handleEchoAck(conn net.Conn) {
 	defer conn.Close()
-	r := bufio.NewReader(conn)
-	w := bufio.NewWriter(conn)
+	reader := bufio.NewReader(conn)
+	writer := bufio.NewWriter(conn)
+
+	var sb strings.Builder
 	for {
-		line, err := r.ReadString('\n')
+		line, err := reader.ReadString('\n')
 		if err != nil {
+			if err != io.EOF {
+				fmt.Println("read error:", err)
+			}
 			return
 		}
-		_, err = w.WriteString(line)
-		if err != nil {
-			return
-		}
-		w.Flush()
+		sb.WriteString(line)
+		writer.WriteString(line)
+		writer.Flush()
 	}
 }
 
