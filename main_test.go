@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"io"
+	"net"
+	"strings"
 	"testing"
 	"testing/synctest"
 )
@@ -25,6 +29,37 @@ func TestAfterFunc(t *testing.T) {
 		synctest.Wait()
 		if !funcCalled {
 			t.Fatalf("AfterFunc function not called after context is canceled")
+		}
+	})
+}
+
+func TestHandleEcho(t *testing.T) {
+	synctest.Run(func() {
+		srv, cli := net.Pipe()
+		defer srv.Close()
+		defer cli.Close()
+
+		go handleEcho(srv)
+
+		body := strings.Repeat("ping\n", 3)
+
+		// Write client data in a goroutine
+		go func() {
+			cli.Write([]byte(body))
+			cli.Close()
+		}()
+
+		reader := bufio.NewReader(cli)
+		var got strings.Builder
+
+		go func() {
+			io.Copy(&got, reader)
+		}()
+
+		synctest.Wait()
+
+		if got.String() != body {
+			t.Fatalf("echo mismatch: got %q, want %q", got.String(), body)
 		}
 	})
 }
